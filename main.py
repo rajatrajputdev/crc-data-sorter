@@ -252,9 +252,6 @@ if signup_file and registration_file:
             else:
                 return ['background-color: #FFB6C1'] * len(row)  # Light pink
         
-        # Display the styled dataframe
-        styled_df = df_result.style.apply(highlight_registered, axis=1)
-        st.dataframe(styled_df, use_container_width=True, height=400)
         
         # Team-wise breakdown
 
