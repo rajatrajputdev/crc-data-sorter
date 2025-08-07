@@ -242,17 +242,7 @@ if signup_file and registration_file:
         with col4:
             st.metric("Unique Teams", unique_teams)
         
-        # Display results
-        st.subheader("👥 Registration Status")
-        
-        # Color code the dataframe
-        def highlight_registered(row):
-            if row['Registered_Team'] == 'Yes':
-                return ['background-color: #90EE90'] * len(row)  # Light green
-            else:
-                return ['background-color: #FFB6C1'] * len(row)  # Light pink
-        
-        
+
         # Team-wise breakdown
 
         # Download section
