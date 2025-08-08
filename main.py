@@ -368,9 +368,6 @@ if st.session_state.analysis_type == 'signup_only':
             
             with col1:
                 st.metric("Total Signups", len(df_signup))
-            with col2:
-                unique_states = df_signup['State'].nunique()
-                st.metric("States Represented", unique_states)
             with col3:
                 top_state = df_signup['State'].mode().iloc[0] if len(df_signup) > 0 else "N/A"
                 st.metric("Top State", top_state)
