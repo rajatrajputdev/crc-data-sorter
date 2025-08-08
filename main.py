@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 import re
-
+import matplotlib.pyplot as plt
 def clean_phone_number(phone):
     """Clean and standardize phone numbers"""
     if pd.isna(phone):
@@ -308,7 +308,7 @@ st.markdown("Choose your analysis type and upload the required files")
 # Main selection
 st.subheader("🎯 What would you like to analyze?")
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("""
@@ -319,6 +319,16 @@ with col1:
     """, unsafe_allow_html=True)
     
     signup_only = st.button("Choose Signup Analysis", key="signup_only", use_container_width=True)
+
+with col3:
+    st.markdown("""
+    <div style="border: 2px solid #FF6B6B; border-radius: 10px; padding: 20px; text-align: center; margin: 10px 0;">
+        <h3 style="color: #FF6B6B;">Registration Analysis Only</h3>
+        <p>Analyze individual registrations and get state-wise statistics</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    registration_only = st.button("Choose Registration Analysis", key="registration_only", use_container_width=True)
 
 with col2:
     st.markdown("""
@@ -339,7 +349,8 @@ if signup_only:
     st.session_state.analysis_type = 'signup_only'
 elif team_analysis:
     st.session_state.analysis_type = 'team_analysis'
-
+elif registration_only:
+    st.session_state.analysis_type = 'registration_only'
 # Show file upload and analysis based on selection
 if st.session_state.analysis_type == 'signup_only':
     st.markdown("---")
@@ -485,6 +496,153 @@ elif st.session_state.analysis_type == 'team_analysis':
     
     elif signup_file or registration_file:
         st.info("📁 Please upload both signup and registration files for complete analysis")
+elif st.session_state.analysis_type == 'registration_only':
+    st.markdown("---")
+    st.subheader("📋 Registration Analysis")
+
+    reg_file = st.file_uploader(
+        "📝 Upload Registration Data", 
+        type=['xlsx', 'xls', 'csv'], 
+        key="reg_file",
+        help="Upload your team registration data file"
+    )
+
+    if reg_file:
+        try:
+            # Load registration data safely
+            df = read_file_safely(reg_file, reg_file.name)
+
+            # Convert Registration_Date if column exists
+            if "Registration_Date" in df.columns:
+                df["Registration_Date"] = pd.to_datetime(df["Registration_Date"], errors="coerce")
+
+            # Remove duplicate teams
+            if "Team Name" in df.columns and "Team Leader Name" in df.columns:
+                df_clean = df.drop_duplicates(subset=["Team Name", "Team Leader Name"])
+            else:
+                df_clean = df.copy()
+
+            # Find missing PPT if column exists
+            if "PPT Link / File Name" in df_clean.columns:
+                missing_ppt = df_clean[df_clean["PPT Link / File Name"].isna()]
+            else:
+                missing_ppt = pd.DataFrame()
+
+            # Calculate team size if member columns exist
+            member_cols = [col for col in df_clean.columns if "Member" in col and "Name" in col]
+            if member_cols:
+                df_clean["Team Size"] = df_clean[member_cols].notna().sum(axis=1) + 1
+                avg_team_size = df_clean["Team Size"].mean()
+            else:
+                avg_team_size = 0
+
+            # Sidebar filters
+            st.sidebar.header("🔍 Filters")
+            if "Theme" in df_clean.columns:
+                theme_filter = st.sidebar.multiselect(
+                    "Select Theme(s)", 
+                    options=df_clean["Theme"].dropna().unique()
+                )
+            else:
+                theme_filter = []
+
+            if "Team Leader University Name with address" in df_clean.columns:
+                uni_filter = st.sidebar.multiselect(
+                    "Select University(s)", 
+                    options=df_clean["Team Leader University Name with address"].dropna().unique()
+                )
+            else:
+                uni_filter = []
+
+            # Date range filter if available
+            if "Registration_Date" in df_clean.columns:
+                min_date = df_clean["Registration_Date"].min()
+                max_date = df_clean["Registration_Date"].max()
+                date_range = st.sidebar.date_input("Select Date Range", [min_date, max_date])
+            else:
+                date_range = None
+
+            # Apply filters
+            filtered_df = df_clean.copy()
+            if theme_filter and "Theme" in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df["Theme"].isin(theme_filter)]
+            if uni_filter and "Team Leader University Name with address" in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df["Team Leader University Name with address"].isin(uni_filter)]
+            if date_range and len(date_range) == 2 and "Registration_Date" in filtered_df.columns:
+                start_date, end_date = date_range
+                filtered_df = filtered_df[
+                    (filtered_df["Registration_Date"] >= pd.to_datetime(start_date)) &
+                    (filtered_df["Registration_Date"] <= pd.to_datetime(end_date))
+                ]
+
+            # Tabs
+            tab1, tab2, tab3, tab4 = st.tabs(["📄 Data Preview", "📊 Charts", "⚠ Missing PPT", "📥 Downloads"])
+
+            # Tab 1 - Data Preview
+            with tab1:
+                st.subheader("📌 Key Stats")
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Total Teams", len(filtered_df))
+                if "Team Leader University Name with address" in filtered_df.columns:
+                    col2.metric("Unique Universities", filtered_df["Team Leader University Name with address"].nunique())
+                else:
+                    col2.metric("Unique Universities", "N/A")
+                col3.metric("Avg Team Size", f"{avg_team_size:.2f}")
+                col4.metric("Missing PPT", len(missing_ppt))
+
+                st.subheader("📄 Filtered Data")
+                st.dataframe(filtered_df)
+
+            # Tab 2 - Charts
+            with tab2:
+                if "Theme" in filtered_df.columns and not filtered_df.empty:
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.subheader("🎯 Teams per Theme")
+                        theme_counts = filtered_df["Theme"].value_counts()
+                        fig1, ax1 = plt.subplots()
+                        ax1.pie(theme_counts, labels=theme_counts.index, autopct='%1.1f%%', startangle=90)
+                        ax1.axis('equal')
+                        st.pyplot(fig1)
+
+                    with col2:
+                        if "Team Leader University Name with address" in filtered_df.columns:
+                            st.subheader("🏫 Top 5 Universities by Participation")
+                            top_unis = filtered_df["Team Leader University Name with address"].value_counts().head(5)
+                            fig2, ax2 = plt.subplots()
+                            ax2.bar(top_unis.index, top_unis.values)
+                            plt.xticks(rotation=45, ha='right')
+                            st.pyplot(fig2)
+
+                # Line Chart - Registrations Over Time
+                if "Registration_Date" in filtered_df.columns:
+                    st.subheader("📅 Registrations Over Time")
+                    registrations_by_date = filtered_df.groupby(filtered_df["Registration_Date"].dt.date).size()
+                    st.line_chart(registrations_by_date)
+
+            # Tab 3 - Missing PPT
+            with tab3:
+                st.subheader("⚠ Teams Missing PPT")
+                if not missing_ppt.empty:
+                    def highlight_missing(s):
+                        return ['background-color: #ffcccc' if pd.isna(v) else '' for v in s]
+                    st.dataframe(missing_ppt.style.apply(highlight_missing, subset=["PPT Link / File Name"]))
+                else:
+                    st.info("✅ No missing PPTs found.")
+
+            # Tab 4 - Downloads
+            with tab4:
+                st.subheader("📥 Download Data")
+                st.download_button("Download Cleaned CSV", df_clean.to_csv(index=False), "registrations_cleaned.csv", "text/csv")
+                if not missing_ppt.empty:
+                    st.download_button("Download Missing PPT List", missing_ppt.to_csv(index=False), "teams_missing_ppt.csv", "text/csv")
+
+        except Exception as e:
+            st.error(f"❌ Error processing registration file: {str(e)}")
+    else:
+        st.info("📁 Please upload the registration file to proceed.")
+ 
 
 else:
     st.info("👆 Please choose an analysis type to begin")
