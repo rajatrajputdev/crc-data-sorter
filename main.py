@@ -621,6 +621,26 @@ elif st.session_state.analysis_type == 'registration_only':
                     registrations_by_date = filtered_df.groupby(filtered_df["Registration_Date"].dt.date).size()
                     st.line_chart(registrations_by_date)
 
+                # 📌 NEW: Theme-wise Data with Download
+                if "Theme" in filtered_df.columns:
+                    st.markdown("---")
+                    st.subheader("📂 Theme-wise Data & Downloads")
+                    
+                    theme_groups = filtered_df.groupby("Theme")
+                    for theme_name, theme_df in theme_groups:
+                        st.write(f"### 🎯 {theme_name} — {len(theme_df)} Teams")
+                        theme_excel = BytesIO()
+                        with pd.ExcelWriter(theme_excel, engine='openpyxl') as writer:
+                            theme_df.to_excel(writer, index=False, sheet_name="Theme Data")
+                        theme_excel.seek(0)
+
+                        st.download_button(
+                            label=f"📥 Download '{theme_name}' Data",
+                            data=theme_excel,
+                            file_name=f"{theme_name.replace(' ', '_')}_teams.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+
             # Tab 3 - Missing PPT
             with tab3:
                 st.subheader("⚠ Teams Missing PPT")
