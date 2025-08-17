@@ -445,7 +445,6 @@ st.title("📊 Team Registration Tracker")
 st.markdown("Choose your analysis type and upload the required files")
 
 # Install instruction notice
-st.info("📝 **Note**: To run this enhanced version, install the required packages: `pip install folium streamlit-folium`")
 
 # Main selection
 st.subheader("🎯 What would you like to analyze?")
